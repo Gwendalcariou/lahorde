@@ -5,6 +5,8 @@ public final class Player {
     private int energy = 100; // 0..100
     private int fatigue = 0; // 0..100 (plus haut = pire)
     private int mental = 80; // 0..100 (plus bas = pire)
+    private int hydration = 80; // 0..100
+    private int hunger = 80; // 0..100
 
     public int hp() {
         return hp;
@@ -54,15 +56,41 @@ public final class Player {
         mental = Math.min(100, mental + amount);
     }
 
-    public void setAll(int hp, int energy, int fatigue, int mental) {
+    public void setAll(int hp, int energy, int fatigue, int mental, int hydration, int hunger) {
         this.hp = clamp(hp);
         this.energy = clamp(energy);
         this.fatigue = clamp(fatigue);
         this.mental = clamp(mental);
+        this.hydration = clamp(hydration);
+        this.hunger = clamp(hunger);
     }
 
     private int clamp(int v) {
         return Math.max(0, Math.min(100, v));
+    }
+
+    public int hydration() {
+        return hydration;
+    }
+
+    public int hunger() {
+        return hunger;
+    }
+
+    public void addHydration(int amount) {
+        hydration = clamp(hydration + amount);
+    }
+
+    public void addHunger(int amount) {
+        hunger = clamp(hunger + amount);
+    }
+
+    public void drainHydration(int amount) {
+        hydration = clamp(hydration - amount);
+    }
+
+    public void drainHunger(int amount) {
+        hunger = clamp(hunger - amount);
     }
 
 }

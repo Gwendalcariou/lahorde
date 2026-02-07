@@ -9,6 +9,8 @@ public final class SaveData {
     public int energy;
     public int fatigue;
     public int mental;
+    public int hydration;
+    public int hunger;
 
     // --- Base ---
     public int defense;
@@ -23,4 +25,7 @@ public final class SaveData {
 
     // --- Log ---
     public List<String> logLines;
+
+    public long rngSeed;
+
 }

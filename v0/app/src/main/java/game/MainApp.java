@@ -123,8 +123,11 @@ public class MainApp extends Application {
                         " | Énergie: " + state.player().energy() +
                         " | Fatigue: " + state.player().fatigue() +
                         " | Mental: " + state.player().mental() +
-                        " | Défense base: " + state.base().defense() +
-                        " | Temps: " + state.clock().days() + "j " + (state.clock().hours() % 24) + "h" +
+                        "\nHydratation: " + state.player().hydration() +
+                        " | Faim: " + state.player().hunger() +
+                        " | Défense: " + state.base().defense() +
+                        " | Temps: " + state.clock().days() + "j " +
+                        (state.clock().hours() % 24) + "h" +
                         " | Menace: " + state.threat().value() + "/100");
 
         invLabel.setText(

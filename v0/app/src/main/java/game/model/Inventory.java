@@ -39,4 +39,29 @@ public final class Inventory {
         items.put(r, Math.max(0, value));
     }
 
+    public int totalItems() {
+        int sum = 0;
+        for (Resource r : Resource.values())
+            sum += get(r);
+        return sum;
+    }
+
+    /**
+     * Ajoute jusqu’à remplir la capacité. Retourne l’excédent perdu.
+     */
+    public int addCapped(Resource r, int amount, int capTotal) {
+        if (amount <= 0)
+            return 0;
+
+        int currentTotal = totalItems();
+        int free = Math.max(0, capTotal - currentTotal);
+
+        int kept = Math.min(amount, free);
+        int lost = amount - kept;
+
+        if (kept > 0)
+            add(r, kept);
+        return lost;
+    }
+
 }

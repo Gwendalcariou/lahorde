@@ -6,10 +6,8 @@ import game.model.Resource;
 
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Random;
 
 public final class ActionFactory {
-    private final Random rng = new Random();
 
     public Map<ActionId, GameAction> createAll() {
         EnumMap<ActionId, GameAction> map = new EnumMap<>(ActionId.class);
@@ -28,6 +26,10 @@ public final class ActionFactory {
             }
 
             public ActionResult apply(GameState s) {
+                if (s.player().hunger() == 0) {
+                    return ActionResult.fail("Tu es trop affamé pour bien récupérer.");
+                }
+
                 ActionResult r = new ActionResult();
                 r.title = "Repos";
                 r.minutesCost = 30;
@@ -59,10 +61,11 @@ public final class ActionFactory {
                 ActionResult r = new ActionResult();
                 r.title = "Boire";
                 r.minutesCost = 2;
-                r.energyDelta = +0;
+                r.energyDelta = 0;
                 r.fatigueDelta = -2;
                 r.threatDelta = 0;
-                r.logLines().add("Tu bois une ration d'eau.");
+                r.logLines().add("Tu bois une ration d'eau (+25 hydratation).");
+                s.player().addHydration(25);
                 return r;
             }
         });
@@ -90,7 +93,8 @@ public final class ActionFactory {
                 r.energyDelta = +10;
                 r.fatigueDelta = -2;
                 r.threatDelta = 0;
-                r.logLines().add("Tu manges quelque chose. Énergie +10.");
+                r.logLines().add("Tu manges quelque chose (+20 satiété & +10 énergie).");
+                s.player().addHunger(20);
                 return r;
             }
         });
@@ -197,34 +201,27 @@ public final class ActionFactory {
                 r.fatigueDelta = fatigueAdd;
                 r.threatDelta = threatAdd;
 
-                int w = randIn(waterRange);
-                int f = randIn(foodRange);
-                int m = randIn(matRange);
-                int med = randIn(medRange);
+                int w = randIn(s, waterRange);
+                int f = randIn(s, foodRange);
+                int m = randIn(s, matRange);
+                int med = randIn(s, medRange);
 
-                if (w > 0)
-                    s.inventory().add(Resource.WATER, w);
-                if (f > 0)
-                    s.inventory().add(Resource.FOOD, f);
-                if (m > 0)
-                    s.inventory().add(Resource.MATERIALS, m);
-                if (med > 0)
-                    s.inventory().add(Resource.MEDICINE, med);
-
-                r.logLines()
-                        .add("Loot: eau +" + w + ", nourriture +" + f + ", matériaux +" + m + ", médocs +" + med + ".");
+                r.logLines().add("🎒 Résultat exploration :");
+                s.addLoot(Resource.WATER, w, r);
+                s.addLoot(Resource.FOOD, f, r);
+                s.addLoot(Resource.MATERIALS, m, r);
+                s.addLoot(Resource.MEDICINE, med, r);
                 return r;
             }
 
-            private int randIn(int[] range) {
+            private int randIn(GameState s, int[] range) {
                 int a = range[0], b = range[1];
                 if (b < a)
                     return 0;
-                return a + rng.nextInt(b - a + 1);
+                return a + s.rng().nextInt(b - a + 1);
             }
 
             private String labelToId(String lbl) {
-                // mapping simple basé sur ton set V0
                 if (lbl.contains("habitation"))
                     return "EXPLORE_HOUSES";
                 if (lbl.contains("entrepôt"))

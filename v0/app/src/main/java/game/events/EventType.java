@@ -4,5 +4,8 @@ public enum EventType {
     NONE,
     GOOD_LOOT,
     MINOR_INJURY,
-    NOISE_SPIKE
+    NOISE_SPIKE,
+    FOUND_SURVIVOR_CACHE,
+    AMBUSH
+
 }

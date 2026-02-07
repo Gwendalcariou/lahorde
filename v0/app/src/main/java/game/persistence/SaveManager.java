@@ -51,6 +51,8 @@ public final class SaveManager {
         d.energy = s.player().energy();
         d.fatigue = s.player().fatigue();
         d.mental = s.player().mental();
+        d.hydration = s.player().hydration();
+        d.hunger = s.player().hunger();
 
         d.defense = s.base().defense();
         d.storageCap = s.base().storageCap();
@@ -66,14 +68,16 @@ public final class SaveManager {
 
         d.logLines = List.copyOf(s.log().lines());
 
+        d.rngSeed = s.rngSeed();
+
         return d;
     }
 
     private GameState fromData(SaveData d) {
         GameState s = new GameState();
 
-        // Important: on ne fait PAS bootstrapV0, on reconstruit depuis la save
-        s.player().setAll(d.hp, d.energy, d.fatigue, d.mental);
+        // On reconstruit depuis la save
+        s.player().setAll(d.hp, d.energy, d.fatigue, d.mental, d.hydration, d.hunger);
         s.base().setAll(d.defense, d.storageCap);
         s.clock().setMinutes(d.minutes);
         s.threat().setValue(d.threat);
@@ -87,6 +91,7 @@ public final class SaveManager {
 
         if (d.logLines != null)
             s.log().setLines(d.logLines);
+        s.setRngSeed(d.rngSeed);
 
         return s;
     }
