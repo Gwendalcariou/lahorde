@@ -1,0 +1,29 @@
+{
+  "hp": 100,
+  "energy": 65,
+  "fatigue": 18,
+  "mental": 80,
+  "defense": 15,
+  "storageCap": 50,
+  "minutes": 139,
+  "threat": 16,
+  "inventory": {
+    "MEDICINE": 2,
+    "MATERIALS": 1,
+    "WATER": 6,
+    "FOOD": 6
+  },
+  "logLines": [
+    "Début de partie. La base tient encore… pour l\u0027instant.",
+    "Tu souffles un peu. Énergie +20, fatigue -15.",
+    "Temps: J+0 (0h) | Menace: 2/100",
+    "Tu bois une ration d\u0027eau.",
+    "Temps: J+0 (0h) | Menace: 2/100",
+    "Tu bois une ration d\u0027eau.",
+    "Temps: J+0 (0h) | Menace: 2/100",
+    "Tu bricoles un petit équipement utile (V0: abstraction).",
+    "Temps: J+0 (1h) | Menace: 8/100",
+    "Tu renforces la base. Défense +5.",
+    "Temps: J+0 (2h) | Menace: 16/100"
+  ]
+}
