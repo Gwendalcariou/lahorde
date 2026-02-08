@@ -8,7 +8,7 @@ public interface GameAction {
 
     String label();
 
-    RiskLevel risk();
+    RiskLevel risk(GameState state);
 
     ActionResult apply(GameState state);
 }

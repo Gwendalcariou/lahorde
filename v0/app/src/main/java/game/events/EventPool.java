@@ -53,24 +53,24 @@ public final class EventPool {
                 int bonusWater = 1 + state.rng().nextInt(3);
                 int spike = 8 + state.rng().nextInt(8);
 
-                result.logLines().add("🎁 Événement : cache de survivant !");
+                result.logLines().add("Evenement: cache de survivant !");
                 state.addLoot(Resource.MATERIALS, bonusMat, result);
                 state.addLoot(Resource.WATER, bonusWater, result);
 
                 result.threatDelta += spike;
-                result.logLines().add("Le remue-ménage attire des rôdeurs… menace +" + spike + ".");
+                result.logLines().add("Le remue-menage attire des rodeurs, menace +" + spike + ".");
             }
 
             case 1 -> { // MINOR_INJURY
                 int dmg = 5 + state.rng().nextInt(8);
                 state.player().damage(dmg);
-                result.logLines().add("🩸 Événement : blessure (-" + dmg + " PV).");
+                result.logLines().add("Evenement: blessure (-" + dmg + " PV).");
                 result.threatDelta += 2;
             }
 
             case 2 -> { // NOISE_SPIKE
                 int spike = 6 + state.rng().nextInt(10);
-                result.logLines().add("📢 Événement : bruit ! menace +" + spike + ".");
+                result.logLines().add("Evenement: bruit ! menace +" + spike + ".");
                 result.threatDelta += spike;
             }
 
@@ -81,9 +81,10 @@ public final class EventPool {
                 state.player().damage(dmg);
                 result.threatDelta += spike;
 
-                result.logLines().add("⚔ Événement : embuscade !");
+                result.logLines().add("Evenement: embuscade !");
                 result.logLines().add("-" + dmg + " PV, menace +" + spike + ".");
             }
         }
     }
 }
+

@@ -5,6 +5,7 @@ public enum ActionId {
     DRINK,
     EAT,
     CRAFT_SIMPLE,
+    USE_MEDICINE,
     UPGRADE_DEFENSE,
     EXPLORE_HOUSES,
     EXPLORE_WAREHOUSE,

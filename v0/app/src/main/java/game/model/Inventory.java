@@ -47,7 +47,7 @@ public final class Inventory {
     }
 
     /**
-     * Ajoute jusqu’à remplir la capacité. Retourne l’excédent perdu.
+     * Ajoute jusqu'a remplir la capacite. Retourne l'excedent perdu.
      */
     public int addCapped(Resource r, int amount, int capTotal) {
         if (amount <= 0)
@@ -65,3 +65,4 @@ public final class Inventory {
     }
 
 }
+

@@ -197,7 +197,31 @@
     "+1 water",
     "+1 food",
     "+2 materials",
-    "Temps: J+2 (48h) | Menace: 7/100"
+    "Temps: J+2 (48h) | Menace: 7/100",
+    "ðŸ“‚ Sauvegarde chargÃ©e."
   ],
+  "techs": [],
+  "zones": {
+    "WAREHOUSE": {
+      "remainingLoot": 100,
+      "danger": 10,
+      "lastVisitedMinutes": -1
+    },
+    "WILDS": {
+      "remainingLoot": 100,
+      "danger": 10,
+      "lastVisitedMinutes": -1
+    },
+    "HOUSES": {
+      "remainingLoot": 100,
+      "danger": 10,
+      "lastVisitedMinutes": -1
+    },
+    "SHOPS": {
+      "remainingLoot": 100,
+      "danger": 10,
+      "lastVisitedMinutes": -1
+    }
+  },
   "rngSeed": 0
 }
