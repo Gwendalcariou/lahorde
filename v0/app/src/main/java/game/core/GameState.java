@@ -281,12 +281,38 @@ public final class GameState {
                 if (out.risk != null && out.risk != game.events.RiskLevel.R0) {
                     events.maybeTrigger(out.risk, this, out.result);
                 }
-                applyActionResult(out.result);
+                log.add("PNJ " + s.name() + " termine sa tache.");
+                applyInstantResult(out.result);
             } else {
                 log.add("X " + out.result.title);
             }
             log.setChannel(prev);
         }
+    }
+
+    /**
+     * Applies an action payload without advancing time.
+     * Used for NPC task completion that already progressed in parallel.
+     */
+    private void applyInstantResult(ActionResult r) {
+        if (r.energyDelta > 0)
+            player.gainEnergy(r.energyDelta);
+        if (r.energyDelta < 0)
+            player.spendEnergy(-r.energyDelta);
+
+        if (r.fatigueDelta > 0)
+            player.addFatigue(r.fatigueDelta);
+        if (r.fatigueDelta < 0)
+            player.reduceFatigue(-r.fatigueDelta);
+
+        boolean horde = threat.add(r.threatDelta);
+
+        for (String line : r.logLines())
+            log.add(line);
+        log.add("Temps: J+" + clock.days() + " (" + clock.hours() + "h) | Menace: " + threat.value() + "/100");
+
+        if (horde)
+            resolveHorde();
     }
 
     private void autoCareSurvivor(Survivor s) {

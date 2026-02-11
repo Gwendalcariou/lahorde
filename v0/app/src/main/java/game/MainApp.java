@@ -26,6 +26,7 @@ import javafx.scene.control.ListCell;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -53,6 +54,7 @@ public class MainApp extends Application {
     private final EnumMap<ZoneId, Label> zoneLabels = new EnumMap<>(ZoneId.class);
     private final EnumMap<TechId, Button> techButtons = new EnumMap<>(TechId.class);
     private final EnumMap<TechId, Label> techStatus = new EnumMap<>(TechId.class);
+    private final EnumMap<ActionId, Button> actionButtons = new EnumMap<>(ActionId.class);
     private final List<SurvivorRow> survivorRows = new ArrayList<>();
 
     private Map<ActionId, GameAction> actions;
@@ -176,6 +178,7 @@ public class MainApp extends Application {
             var btn = new Button(a.label());
             btn.setMaxWidth(Double.MAX_VALUE);
             btn.setOnAction(e -> runAction(a));
+            actionButtons.put(id, btn);
             box.getChildren().add(btn);
         }
         return box;
@@ -235,7 +238,7 @@ public class MainApp extends Application {
 
             var row = new HBox(8, info, combo, btn);
             box.getChildren().add(row);
-            survivorRows.add(new SurvivorRow(s, info, combo));
+            survivorRows.add(new SurvivorRow(s, info, combo, btn));
         }
         return box;
     }
@@ -388,6 +391,26 @@ public class MainApp extends Application {
 
         for (SurvivorRow row : survivorRows) {
             row.info.setText(survivorLabel(row.survivor));
+            String reason = survivorAssignBlockReason(row.survivor);
+            boolean blocked = reason != null;
+            row.assign.setDisable(blocked);
+            if (blocked) {
+                row.assign.setTooltip(new Tooltip(reason));
+            } else {
+                row.assign.setTooltip(null);
+            }
+        }
+
+        for (ActionId id : actionButtons.keySet()) {
+            Button btn = actionButtons.get(id);
+            String reason = actionBlockReason(id);
+            boolean blocked = reason != null;
+            btn.setDisable(blocked);
+            if (blocked) {
+                btn.setTooltip(new Tooltip(reason));
+            } else {
+                btn.setTooltip(null);
+            }
         }
 
         baseLogArea.setText(joinLines(state.log().lines(LogBook.Channel.BASE)));
@@ -419,6 +442,30 @@ public class MainApp extends Application {
     private String npcTaskLabel(NpcTaskId id) {
         var def = NpcTaskCatalog.get(id);
         return def == null ? id.name() : def.label;
+    }
+
+    private String actionBlockReason(ActionId id) {
+        return switch (id) {
+            case DRINK -> state.inventory().get(Resource.WATER) < 1 ? "Besoin de 1 eau." : null;
+            case EAT -> state.inventory().get(Resource.FOOD) < 1 ? "Besoin de 1 nourriture." : null;
+            case USE_MEDICINE -> state.inventory().get(Resource.MEDICINE) < 1 ? "Besoin de 1 medicament." : null;
+            case CRAFT_SIMPLE -> state.inventory().get(Resource.MATERIALS) < state.rules().craftSimpleMaterialsCost(state)
+                    ? "Materiaux insuffisants." : null;
+            case UPGRADE_DEFENSE -> state.inventory().get(Resource.MATERIALS) < 6 ? "Besoin de 6 materiaux." : null;
+            case REST -> state.player().hunger() == 0 ? "Impossible: faim a 0." : null;
+            case EXPLORE_HOUSES -> state.player().energy() < 25 ? "Energie insuffisante (25)." : null;
+            case EXPLORE_WAREHOUSE -> state.player().energy() < 28 ? "Energie insuffisante (28)." : null;
+            case EXPLORE_SHOPS -> state.player().energy() < 22 ? "Energie insuffisante (22)." : null;
+            case EXPLORE_WILDS -> state.player().energy() < 25 ? "Energie insuffisante (25)." : null;
+        };
+    }
+
+    private String survivorAssignBlockReason(Survivor s) {
+        if (s.hp() <= 0)
+            return "PNJ hors service.";
+        if (s.isBusy())
+            return "PNJ deja en tache.";
+        return null;
     }
 
     private TextArea buildLogArea() {
@@ -459,11 +506,13 @@ public class MainApp extends Application {
         final Survivor survivor;
         final Label info;
         final ComboBox<NpcTaskId> task;
+        final Button assign;
 
-        SurvivorRow(Survivor survivor, Label info, ComboBox<NpcTaskId> task) {
+        SurvivorRow(Survivor survivor, Label info, ComboBox<NpcTaskId> task, Button assign) {
             this.survivor = survivor;
             this.info = info;
             this.task = task;
+            this.assign = assign;
         }
     }
 

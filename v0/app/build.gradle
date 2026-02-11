@@ -34,3 +34,10 @@ tasks.test {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
+
+tasks.register('runSimulation', JavaExec) {
+    group = 'application'
+    description = 'Run headless balance simulations.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'game.sim.SimulationMain'
+}

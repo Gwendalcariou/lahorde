@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 
 public final class SaveData {
+    public int saveVersion;
+
     // --- Player ---
     public int hp;
     public int energy;

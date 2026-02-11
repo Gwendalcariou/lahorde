@@ -16,6 +16,8 @@ import java.nio.file.Path;
 import java.util.List;
 
 public final class SaveManager {
+    private static final int CURRENT_SAVE_VERSION = 2;
+
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final Path savePath = Path.of("save_v0.json");
 
@@ -35,6 +37,8 @@ public final class SaveManager {
 
         try {
             SaveData data = gson.fromJson(Files.readString(savePath), SaveData.class);
+            if (data == null)
+                return null;
             return fromData(data);
         } catch (IOException e) {
             return null;
@@ -49,6 +53,7 @@ public final class SaveManager {
 
     private SaveData toData(GameState s) {
         SaveData d = new SaveData();
+        d.saveVersion = CURRENT_SAVE_VERSION;
 
         d.hp = s.player().hp();
         d.energy = s.player().energy();
@@ -113,6 +118,7 @@ public final class SaveManager {
     }
 
     private GameState fromData(SaveData d) {
+        d = migrate(d);
         GameState s = new GameState();
 
         // On reconstruit depuis la save
@@ -185,5 +191,23 @@ public final class SaveManager {
         s.setRngSeed(d.rngSeed);
 
         return s;
+    }
+
+    private SaveData migrate(SaveData d) {
+        if (d == null) {
+            return null;
+        }
+
+        if (d.saveVersion <= 0) {
+            // Legacy saves before explicit versioning.
+            d.saveVersion = 1;
+        }
+
+        if (d.saveVersion == 1) {
+            // v1 -> v2: no data transform needed beyond marking version.
+            d.saveVersion = 2;
+        }
+
+        return d;
     }
 }
