@@ -15,6 +15,14 @@ public final class TimeClock {
         return hours() / 24;
     }
 
+    public int hourOfDay() {
+        return (int) (hours() % 24);
+    }
+
+    public int minuteOfHour() {
+        return (int) (minutes % 60);
+    }
+
     public void advanceMinutes(long delta) {
         if (delta < 0)
             throw new IllegalArgumentException("delta < 0");

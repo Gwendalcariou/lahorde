@@ -56,6 +56,7 @@ public class MainApp extends Application {
     private final EnumMap<TechId, Label> techStatus = new EnumMap<>(TechId.class);
     private final EnumMap<ActionId, Button> actionButtons = new EnumMap<>(ActionId.class);
     private final List<SurvivorRow> survivorRows = new ArrayList<>();
+    private boolean endStateAnnounced;
 
     private Map<ActionId, GameAction> actions;
 
@@ -94,6 +95,7 @@ public class MainApp extends Application {
 
         var baseActions = buildActionsPane("Actions Base",
                 ActionId.REST,
+                ActionId.SLEEP,
                 ActionId.DRINK,
                 ActionId.EAT,
                 ActionId.USE_MEDICINE,
@@ -162,6 +164,7 @@ public class MainApp extends Application {
             } else {
                 state = loaded;
                 actions = new ActionFactory().createAll();
+                endStateAnnounced = false;
                 withLogChannel(LogBook.Channel.BASE, () -> state.log().add("Sauvegarde chargee."));
             }
             refreshUI();
@@ -234,16 +237,21 @@ public class MainApp extends Application {
             });
 
             var btn = new Button("Assigner");
-            btn.setOnAction(e -> runNpcTask(s, combo.getValue()));
+            btn.setOnAction(e -> runNpcTask(s.name(), combo.getValue()));
 
             var row = new HBox(8, info, combo, btn);
             box.getChildren().add(row);
-            survivorRows.add(new SurvivorRow(s, info, combo, btn));
+            survivorRows.add(new SurvivorRow(s.name(), info, combo, btn));
         }
         return box;
     }
 
     private void unlockTech(TechDef def) {
+        if (state.isVictoryAchieved() || state.isPlayerDead()) {
+            refreshUI();
+            return;
+        }
+
         LogBook.Channel prev = state.log().channel();
         state.log().setChannel(LogBook.Channel.BASE);
         if (state.techs().isUnlocked(def.id)) {
@@ -253,7 +261,8 @@ public class MainApp extends Application {
             return;
         }
 
-        if (state.player().energy() < def.energyCost) {
+        int energyCost = state.rules().adjustedEnergyCost(state, def.energyCost);
+        if (state.player().energy() < energyCost) {
             state.log().add("Pas assez d'energie pour cette tech.");
             refreshUI();
             state.log().setChannel(prev);
@@ -267,7 +276,7 @@ public class MainApp extends Application {
             return;
         }
 
-        state.player().spendEnergy(def.energyCost);
+        state.player().spendEnergy(energyCost);
         state.techs().unlock(def.id);
 
         ActionResult r = new ActionResult();
@@ -284,8 +293,7 @@ public class MainApp extends Application {
     }
 
     private void runAction(GameAction action) {
-        if (state.player().hp() <= 0) {
-            withLogChannel(LogBook.Channel.BASE, () -> state.log().add("La partie est terminee (V1)."));
+        if (state.isPlayerDead() || state.isVictoryAchieved()) {
             refreshUI();
             return;
         }
@@ -312,7 +320,13 @@ public class MainApp extends Application {
         state.log().setChannel(prev);
     }
 
-    private void runNpcTask(Survivor s, NpcTaskId taskId) {
+    private void runNpcTask(String survivorName, NpcTaskId taskId) {
+        if (state.isPlayerDead() || state.isVictoryAchieved()) {
+            refreshUI();
+            return;
+        }
+
+        Survivor s = state.survivors().findByName(survivorName);
         if (s == null || taskId == null) {
             withLogChannel(LogBook.Channel.BASE, () -> state.log().add("Tache PNJ invalide."));
             refreshUI();
@@ -338,6 +352,8 @@ public class MainApp extends Application {
     }
 
     private void refreshUI() {
+        announceEndStateIfNeeded();
+
         String line1 = "PV: " + state.player().hp() +
                 " | Energie: " + state.player().energy() +
                 " | Fatigue: " + state.player().fatigue() +
@@ -347,7 +363,8 @@ public class MainApp extends Application {
                 " | Defense: " + state.base().defense() +
                 " | Stockage: " + state.rules().storageCap(state) +
                 " | Temps: " + state.clock().days() + "j " +
-                (state.clock().hours() % 24) + "h" +
+                String.format("%02d:%02d", state.clock().hourOfDay(), state.clock().minuteOfHour()) +
+                " (" + state.rules().dayPeriodLabel(state) + ")" +
                 " | Menace: " + state.threat().value() + "/100";
 
         statsLine1.setText(line1);
@@ -376,22 +393,31 @@ public class MainApp extends Application {
             Label status = techStatus.get(def.id);
             Button btn = techButtons.get(def.id);
             boolean unlocked = state.techs().isUnlocked(def.id);
+            boolean finished = state.isPlayerDead() || state.isVictoryAchieved();
             if (status != null) {
                 if (unlocked) {
                     status.setText("[OK]");
                 } else {
                     status.setText("Cout: " + def.materialsCost + " mat | " + def.minutesCost + " min | "
-                            + def.energyCost + " energie");
+                            + state.rules().adjustedEnergyCost(state, def.energyCost) + " energie");
                 }
             }
             if (btn != null) {
-                btn.setDisable(unlocked);
+                btn.setDisable(unlocked || finished);
             }
         }
 
         for (SurvivorRow row : survivorRows) {
-            row.info.setText(survivorLabel(row.survivor));
-            String reason = survivorAssignBlockReason(row.survivor);
+            Survivor s = state.survivors().findByName(row.survivorName);
+            if (s == null) {
+                row.info.setText(row.survivorName + " | indisponible");
+                row.assign.setDisable(true);
+                row.assign.setTooltip(new Tooltip("PNJ introuvable dans l'etat courant."));
+                continue;
+            }
+
+            row.info.setText(survivorLabel(s));
+            String reason = survivorAssignBlockReason(s);
             boolean blocked = reason != null;
             row.assign.setDisable(blocked);
             if (blocked) {
@@ -445,27 +471,68 @@ public class MainApp extends Application {
     }
 
     private String actionBlockReason(ActionId id) {
+        if (state.isVictoryAchieved())
+            return "Partie gagnee.";
+        if (state.isPlayerDead())
+            return "Partie terminee.";
+
         return switch (id) {
+            case SLEEP -> null;
             case DRINK -> state.inventory().get(Resource.WATER) < 1 ? "Besoin de 1 eau." : null;
             case EAT -> state.inventory().get(Resource.FOOD) < 1 ? "Besoin de 1 nourriture." : null;
             case USE_MEDICINE -> state.inventory().get(Resource.MEDICINE) < 1 ? "Besoin de 1 medicament." : null;
             case CRAFT_SIMPLE -> state.inventory().get(Resource.MATERIALS) < state.rules().craftSimpleMaterialsCost(state)
-                    ? "Materiaux insuffisants." : null;
-            case UPGRADE_DEFENSE -> state.inventory().get(Resource.MATERIALS) < 6 ? "Besoin de 6 materiaux." : null;
+                    ? "Materiaux insuffisants."
+                    : (state.player().energy() < state.rules().adjustedEnergyCost(state, 15)
+                            ? "Energie insuffisante."
+                            : null);
+            case UPGRADE_DEFENSE -> state.inventory().get(Resource.MATERIALS) < 6 ? "Besoin de 6 materiaux."
+                    : (state.player().energy() < state.rules().adjustedEnergyCost(state, 20)
+                            ? "Energie insuffisante."
+                            : null);
             case REST -> state.player().hunger() == 0 ? "Impossible: faim a 0." : null;
-            case EXPLORE_HOUSES -> state.player().energy() < 25 ? "Energie insuffisante (25)." : null;
-            case EXPLORE_WAREHOUSE -> state.player().energy() < 28 ? "Energie insuffisante (28)." : null;
-            case EXPLORE_SHOPS -> state.player().energy() < 22 ? "Energie insuffisante (22)." : null;
-            case EXPLORE_WILDS -> state.player().energy() < 25 ? "Energie insuffisante (25)." : null;
+            case EXPLORE_HOUSES -> state.player().energy() < state.rules().adjustedEnergyCost(state, 25)
+                    ? "Energie insuffisante (" + state.rules().adjustedEnergyCost(state, 25) + ")."
+                    : null;
+            case EXPLORE_WAREHOUSE -> state.player().energy() < state.rules().adjustedEnergyCost(state, 28)
+                    ? "Energie insuffisante (" + state.rules().adjustedEnergyCost(state, 28) + ")."
+                    : null;
+            case EXPLORE_SHOPS -> state.player().energy() < state.rules().adjustedEnergyCost(state, 22)
+                    ? "Energie insuffisante (" + state.rules().adjustedEnergyCost(state, 22) + ")."
+                    : null;
+            case EXPLORE_WILDS -> state.player().energy() < state.rules().adjustedEnergyCost(state, 25)
+                    ? "Energie insuffisante (" + state.rules().adjustedEnergyCost(state, 25) + ")."
+                    : null;
         };
     }
 
     private String survivorAssignBlockReason(Survivor s) {
+        if (state.isVictoryAchieved())
+            return "Partie gagnee.";
+        if (state.isPlayerDead())
+            return "Partie terminee.";
         if (s.hp() <= 0)
             return "PNJ hors service.";
         if (s.isBusy())
             return "PNJ deja en tache.";
         return null;
+    }
+
+    private void announceEndStateIfNeeded() {
+        if (endStateAnnounced)
+            return;
+
+        if (state.isVictoryAchieved()) {
+            withLogChannel(LogBook.Channel.BASE,
+                    () -> state.log().add("Victoire: toutes les technologies sont debloquees."));
+            endStateAnnounced = true;
+            return;
+        }
+
+        if (state.isPlayerDead()) {
+            withLogChannel(LogBook.Channel.BASE, () -> state.log().add("Defaite: la partie est terminee."));
+            endStateAnnounced = true;
+        }
     }
 
     private TextArea buildLogArea() {
@@ -503,13 +570,13 @@ public class MainApp extends Application {
     }
 
     private static final class SurvivorRow {
-        final Survivor survivor;
+        final String survivorName;
         final Label info;
         final ComboBox<NpcTaskId> task;
         final Button assign;
 
-        SurvivorRow(Survivor survivor, Label info, ComboBox<NpcTaskId> task, Button assign) {
-            this.survivor = survivor;
+        SurvivorRow(String survivorName, Label info, ComboBox<NpcTaskId> task, Button assign) {
+            this.survivorName = survivorName;
             this.info = info;
             this.task = task;
             this.assign = assign;

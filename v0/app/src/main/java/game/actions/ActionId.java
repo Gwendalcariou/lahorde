@@ -2,6 +2,7 @@ package game.actions;
 
 public enum ActionId {
     REST,
+    SLEEP,
     DRINK,
     EAT,
     CRAFT_SIMPLE,

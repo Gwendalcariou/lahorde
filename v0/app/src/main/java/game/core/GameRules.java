@@ -5,6 +5,11 @@ import game.world.ZoneId;
 import game.world.ZoneState;
 
 public final class GameRules {
+    private static final int NIGHT_START_HOUR = 22;
+    private static final int NIGHT_END_HOUR = 6;
+    private static final double NIGHT_ENERGY_MULTIPLIER = 1.3;
+    private static final int NIGHT_EXPLORATION_THREAT_BONUS = 4;
+
     public static final class LootResult {
         public final int water;
         public final int food;
@@ -32,6 +37,27 @@ public final class GameRules {
 
     public int craftSimpleMaterialsCost(GameState s) {
         return s.techs().isUnlocked(TechId.WORKSHOP) ? 2 : 3;
+    }
+
+    public boolean isNight(GameState s) {
+        int h = s.clock().hourOfDay();
+        return h >= NIGHT_START_HOUR || h < NIGHT_END_HOUR;
+    }
+
+    public String dayPeriodLabel(GameState s) {
+        return isNight(s) ? "Nuit" : "Jour";
+    }
+
+    public int adjustedEnergyCost(GameState s, int baseCost) {
+        if (baseCost <= 0)
+            return 0;
+        if (!isNight(s))
+            return baseCost;
+        return (int) Math.ceil(baseCost * NIGHT_ENERGY_MULTIPLIER);
+    }
+
+    public int explorationThreatBonus(GameState s) {
+        return isNight(s) ? NIGHT_EXPLORATION_THREAT_BONUS : 0;
     }
 
     public int medicineHealAmount(GameState s) {

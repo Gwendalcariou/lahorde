@@ -23,6 +23,8 @@ public final class GameState {
     private final WorldMap world = new WorldMap();
     private final GameRules rules = new GameRules();
     private final SurvivorRoster survivors = new SurvivorRoster();
+    private long playerHydrationDrainCarryMinutes;
+    private long playerHungerDrainCarryMinutes;
 
     public GameConfig config() {
         return config;
@@ -72,6 +74,18 @@ public final class GameState {
         return survivors;
     }
 
+    public boolean isPlayerDead() {
+        return player.hp() <= 0;
+    }
+
+    public boolean isVictoryAchieved() {
+        for (TechId id : TechId.values()) {
+            if (!techs.isUnlocked(id))
+                return false;
+        }
+        return true;
+    }
+
     public void bootstrapV0() {
         inventory.add(game.model.Resource.WATER, 8);
         inventory.add(game.model.Resource.FOOD, 6);
@@ -86,6 +100,9 @@ public final class GameState {
     public ActionResult assignNpcTask(Survivor s, NpcTaskId taskId) {
         if (s == null || taskId == null)
             return ActionResult.fail("Tache invalide.");
+
+        if (isVictoryAchieved())
+            return ActionResult.fail("Partie deja gagnee.");
 
         if (s.isBusy())
             return ActionResult.fail(s.name() + " est deja occupe.");
@@ -155,7 +172,11 @@ public final class GameState {
 
                 long visitAt = clock.minutes();
                 world.get(zone).onVisit(w + f + m + med, visitAt);
-                r.threatDelta += 5;
+                int nightThreat = rules.explorationThreatBonus(this);
+                r.threatDelta += 5 + nightThreat;
+                if (nightThreat > 0) {
+                    r.logLines().add("Nuit: menace supplementaire +" + nightThreat + ".");
+                }
             }
             case HEAL_SELF -> {
                 if (!inventory.tryConsume(Resource.MEDICINE, 1)) {
@@ -184,25 +205,8 @@ public final class GameState {
         // temps
         clock.advanceMinutes(r.minutesCost);
         progressNpcTasks(r.minutesCost);
-        long hours = r.minutesCost / 60;
-        if (hours > 0) {
-            int hDrain = (int) (hours * 4);
-            int fDrain = (int) (hours * 2);
-
-            player.drainHydration(hDrain);
-            player.drainHunger(fDrain);
-
-            if (player.hydration() == 0) {
-                int dmg = 5 * (int) hours;
-                player.damage(dmg);
-                player.addMental(-5 * (int) hours);
-                log.add("Deshydratation ! -" + dmg + " PV, mental en baisse.");
-            }
-
-            if (player.hunger() == 0) {
-                player.addFatigue(5 * (int) hours);
-                log.add("Faim extreme ! Fatigue en hausse.");
-            }
+        if (r.minutesCost > 0) {
+            applyPlayerMetabolicDrain(r.minutesCost);
         }
 
         // fatigue/energie (energyDelta gere ici pour repos/manger)
@@ -239,32 +243,26 @@ public final class GameState {
         java.util.ArrayList<Survivor> completedSurvivors = new java.util.ArrayList<>();
 
         for (Survivor s : survivors.list()) {
-            if (!s.isBusy())
+            applySurvivorMetabolicDrain(s, minutes);
+
+            if (s.isBusy()) {
+                s.reduceTaskMinutes(minutes);
+
+                if (s.taskRemainingMinutes() == 0 && s.currentTask() != null) {
+                    NpcTaskOutcome out = resolveNpcTask(s, s.currentTask());
+                    completed.add(out);
+                    completedSurvivors.add(s);
+                }
                 continue;
+            }
 
-            s.reduceTaskMinutes(minutes);
-
-            long hours = minutes / 60;
-            if (hours > 0) {
-                int hDrain = (int) (hours * 4);
-                int fDrain = (int) (hours * 2);
-                s.drainHydration(hDrain);
-                s.drainHunger(fDrain);
-                if (s.hydration() == 0) {
-                    s.damage(3 * (int) hours);
-                }
-                if (s.hunger() == 0) {
-                    s.damage(2 * (int) hours);
-                }
+            // Idle survivors recover energy while resting at base.
+            int energyGain = (int) (minutes / 5); // 12 energy per hour
+            if (energyGain > 0) {
+                s.gainEnergy(energyGain);
             }
 
             autoCareSurvivor(s);
-
-            if (s.taskRemainingMinutes() == 0 && s.currentTask() != null) {
-                NpcTaskOutcome out = resolveNpcTask(s, s.currentTask());
-                completed.add(out);
-                completedSurvivors.add(s);
-            }
         }
 
         for (int i = 0; i < completed.size(); i++) {
@@ -325,18 +323,93 @@ public final class GameState {
         }
 
         if (s.hydration() <= config.npcHydrationThreshold) {
-            if (inventory.tryConsume(Resource.WATER, 1)) {
+            int target = randomRefillTarget();
+            int consumed = 0;
+            while (s.hydration() < target && inventory.tryConsume(Resource.WATER, 1)) {
                 s.addHydration(25);
-                log.add("PNJ " + s.name() + " boit une ration d'eau.");
+                consumed++;
+            }
+            if (consumed > 0) {
+                log.add("PNJ " + s.name() + " boit " + consumed + " ration(s) d'eau (cible " + target + ").");
             }
         }
 
         if (s.hunger() <= config.npcHungerThreshold) {
-            if (inventory.tryConsume(Resource.FOOD, 1)) {
+            int target = randomRefillTarget();
+            int consumed = 0;
+            while (s.hunger() < target && inventory.tryConsume(Resource.FOOD, 1)) {
                 s.addHunger(20);
-                log.add("PNJ " + s.name() + " mange une ration.");
+                consumed++;
+            }
+            if (consumed > 0) {
+                log.add("PNJ " + s.name() + " mange " + consumed + " ration(s) (cible " + target + ").");
             }
         }
+    }
+
+    private int randomRefillTarget() {
+        int min = Math.max(0, Math.min(100, config.npcRefillTargetMin));
+        int max = Math.max(0, Math.min(100, config.npcRefillTargetMax));
+        if (max < min) {
+            int t = min;
+            min = max;
+            max = t;
+        }
+        return min + rng.nextInt(max - min + 1);
+    }
+
+    private void applyPlayerMetabolicDrain(long minutes) {
+        int hDrain = drainByMinutes(minutes, 4, true);
+        int fDrain = drainByMinutes(minutes, 2, false);
+
+        if (hDrain > 0)
+            player.drainHydration(hDrain);
+        if (fDrain > 0)
+            player.drainHunger(fDrain);
+
+        long hours = minutes / 60;
+        if (hours > 0 && player.hydration() == 0) {
+            int dmg = 5 * (int) hours;
+            player.damage(dmg);
+            player.addMental(-5 * (int) hours);
+            log.add("Deshydratation ! -" + dmg + " PV, mental en baisse.");
+        }
+
+        if (hours > 0 && player.hunger() == 0) {
+            player.addFatigue(5 * (int) hours);
+            log.add("Faim extreme ! Fatigue en hausse.");
+        }
+    }
+
+    private void applySurvivorMetabolicDrain(Survivor s, long minutes) {
+        int hDrain = s.applyHydrationDrainByMinutes(minutes, 4);
+        int fDrain = s.applyHungerDrainByMinutes(minutes, 2);
+        long hours = minutes / 60;
+
+        if (hours > 0 && s.hydration() == 0) {
+            s.damage(3 * (int) hours);
+        }
+        if (hours > 0 && s.hunger() == 0) {
+            s.damage(2 * (int) hours);
+        }
+    }
+
+    private int drainByMinutes(long minutes, int pointsPerHour, boolean hydration) {
+        long minutesPerPoint = Math.max(1, 60L / pointsPerHour);
+        if (minutes <= 0)
+            return 0;
+
+        if (hydration) {
+            long total = playerHydrationDrainCarryMinutes + minutes;
+            int points = (int) (total / minutesPerPoint);
+            playerHydrationDrainCarryMinutes = total % minutesPerPoint;
+            return points;
+        }
+
+        long total = playerHungerDrainCarryMinutes + minutes;
+        int points = (int) (total / minutesPerPoint);
+        playerHungerDrainCarryMinutes = total % minutesPerPoint;
+        return points;
     }
 
     private void resolveHorde() {

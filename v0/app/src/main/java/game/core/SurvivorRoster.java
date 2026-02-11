@@ -17,6 +17,16 @@ public final class SurvivorRoster {
         return Collections.unmodifiableList(survivors);
     }
 
+    public Survivor findByName(String name) {
+        if (name == null)
+            return null;
+        for (Survivor s : survivors) {
+            if (name.equals(s.name()))
+                return s;
+        }
+        return null;
+    }
+
     public void setAll(List<Survivor> list) {
         survivors.clear();
         if (list != null)

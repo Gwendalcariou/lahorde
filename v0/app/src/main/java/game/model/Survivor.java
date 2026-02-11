@@ -9,6 +9,8 @@ public final class Survivor {
     private int energy = 100;
     private int hydration = 80;
     private int hunger = 80;
+    private long hydrationDrainCarryMinutes;
+    private long hungerDrainCarryMinutes;
     private game.core.NpcTaskId currentTask;
     private long taskRemainingMinutes;
 
@@ -123,6 +125,32 @@ public final class Survivor {
         this.hydration = clamp(hydration);
         this.hunger = clamp(hunger);
         this.relation = clamp(relation);
+        this.hydrationDrainCarryMinutes = 0;
+        this.hungerDrainCarryMinutes = 0;
+    }
+
+    public int applyHydrationDrainByMinutes(long minutes, int pointsPerHour) {
+        if (minutes <= 0 || pointsPerHour <= 0)
+            return 0;
+        long minutesPerPoint = Math.max(1, 60L / pointsPerHour);
+        long total = hydrationDrainCarryMinutes + minutes;
+        int points = (int) (total / minutesPerPoint);
+        hydrationDrainCarryMinutes = total % minutesPerPoint;
+        if (points > 0)
+            drainHydration(points);
+        return points;
+    }
+
+    public int applyHungerDrainByMinutes(long minutes, int pointsPerHour) {
+        if (minutes <= 0 || pointsPerHour <= 0)
+            return 0;
+        long minutesPerPoint = Math.max(1, 60L / pointsPerHour);
+        long total = hungerDrainCarryMinutes + minutes;
+        int points = (int) (total / minutesPerPoint);
+        hungerDrainCarryMinutes = total % minutesPerPoint;
+        if (points > 0)
+            drainHunger(points);
+        return points;
     }
 
     private int clamp(int v) {

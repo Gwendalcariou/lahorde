@@ -42,6 +42,32 @@ public final class ActionFactory {
             }
         });
 
+        map.put(ActionId.SLEEP, new GameAction() {
+            public ActionId id() {
+                return ActionId.SLEEP;
+            }
+
+            public String label() {
+                return "Dormir (8h)";
+            }
+
+            public RiskLevel risk(GameState s) {
+                return RiskLevel.R0;
+            }
+
+            public ActionResult apply(GameState s) {
+                ActionResult r = new ActionResult();
+                r.title = "Sommeil";
+                r.minutesCost = 8 * 60;
+                r.energyDelta = 0;
+                r.fatigueDelta = -30;
+                r.threatDelta = +3;
+                s.player().gainEnergy(100);
+                r.logLines().add("Tu dors 8h. Energie restauree au maximum.");
+                return r;
+            }
+        });
+
         map.put(ActionId.DRINK, new GameAction() {
             public ActionId id() {
                 return ActionId.DRINK;
@@ -149,10 +175,15 @@ public final class ActionFactory {
                 if (!s.inventory().tryConsume(Resource.MATERIALS, cost)) {
                     return ActionResult.fail("Pas assez de materiaux (" + cost + " requis).");
                 }
+                int energyCost = s.rules().adjustedEnergyCost(s, 15);
+                if (!s.player().spendEnergy(energyCost)) {
+                    s.inventory().add(Resource.MATERIALS, cost);
+                    return ActionResult.fail("Pas assez d'energie.");
+                }
                 ActionResult r = new ActionResult();
                 r.title = "Fabrication";
                 r.minutesCost = 45;
-                r.energyDelta = -15;
+                r.energyDelta = 0;
                 r.fatigueDelta = +8;
                 r.threatDelta = +6;
                 r.logLines().add("Tu bricoles un petit equipement utile (V0: abstraction).");
@@ -177,11 +208,16 @@ public final class ActionFactory {
                 if (!s.inventory().tryConsume(Resource.MATERIALS, 6)) {
                     return ActionResult.fail("Pas assez de materiaux (6 requis).");
                 }
+                int energyCost = s.rules().adjustedEnergyCost(s, 20);
+                if (!s.player().spendEnergy(energyCost)) {
+                    s.inventory().add(Resource.MATERIALS, 6);
+                    return ActionResult.fail("Pas assez d'energie.");
+                }
                 s.base().upgradeDefense();
                 ActionResult r = new ActionResult();
                 r.title = "Renforts";
                 r.minutesCost = 60;
-                r.energyDelta = -20;
+                r.energyDelta = 0;
                 r.fatigueDelta = +10;
                 r.threatDelta = +7;
                 r.logLines().add("Tu renforces la base. Defense +5.");
@@ -218,7 +254,8 @@ public final class ActionFactory {
             }
 
             public ActionResult apply(GameState s) {
-                if (!s.player().spendEnergy(energyCost)) {
+                int adjustedEnergy = s.rules().adjustedEnergyCost(s, energyCost);
+                if (!s.player().spendEnergy(adjustedEnergy)) {
                     return ActionResult.fail("Pas assez d'energie.");
                 }
 
@@ -227,11 +264,15 @@ public final class ActionFactory {
                 r.minutesCost = minutes;
                 r.energyDelta = 0; // déjà dépensée
                 r.fatigueDelta = fatigueAdd;
-                r.threatDelta = threatAdd;
+                int nightThreat = s.rules().explorationThreatBonus(s);
+                r.threatDelta = threatAdd + nightThreat;
 
                 var zoneState = s.world().get(zone);
                 r.logLines().add("Zone: " + zone.name() + " | Loot " + zoneState.remainingLoot() + "% | Danger "
                         + zoneState.danger() + "%");
+                if (nightThreat > 0) {
+                    r.logLines().add("Nuit: energie +cout et menace +" + nightThreat + " en exploration.");
+                }
 
                 var loot = s.rules().rollLoot(s, zone);
 
